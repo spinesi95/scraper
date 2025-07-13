@@ -25,7 +25,7 @@ jobs:
       - name: Cache del conteggio biglietti
         uses: actions/cache@v3
         with:
-          path: ultimo_conteggio.txt
+          path: dati_biglietti.txt
           key: ${{ runner.os }}-conteggio
 
       - name: Esecuzione dello script di monitoraggio
