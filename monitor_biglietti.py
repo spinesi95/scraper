@@ -6,7 +6,7 @@ import os
 # Le credenziali e l'URL verranno letti dalle "Secrets" di GitHub
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
-URL = os.environ.get('MONITOR_URL') # URL letto dai secret
+URL = os.environ.get('MONITOR_URL')
 
 # File per salvare l'ultimo conteggio
 FILE_CONTEGGIO = 'ultimo_conteggio.txt'
@@ -61,10 +61,12 @@ def controlla_biglietti():
         print(f"Biglietti trovati: {numero_biglietti_attuale}. Ultimo conteggio: {ultimo_numero_biglietti}")
 
         if ultimo_numero_biglietti is None:
-            messaggio = f"✅ Avviato il monitoraggio. Trovati {numero_biglietti_attuale} biglietti."
+            # ▼▼▼ RIGA MODIFICATA ▼▼▼
+            messaggio = f"✅ Monitoraggio avviato.\nBiglietti trovati: {numero_biglietti_attuale}\n\n<b>URL:</b> {URL}"
             invia_messaggio_telegram(messaggio)
         elif numero_biglietti_attuale != ultimo_numero_biglietti:
-            messaggio = f"❗️<b>Variazione Biglietti!</b> Da {ultimo_numero_biglietti} a <b>{numero_biglietti_attuale}</b>.\nControlla: {URL}"
+            # ▼▼▼ RIGA MODIFICATA ▼▼▼
+            messaggio = f"❗️<b>Variazione Biglietti!</b>\n\nPrecedente: {ultimo_numero_biglietti}\nAttuale: <b>{numero_biglietti_attuale}</b>\n\n<b>URL:</b> {URL}"
             invia_messaggio_telegram(messaggio)
         else:
             print("Nessuna variazione.")
