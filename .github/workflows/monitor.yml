@@ -2,13 +2,12 @@ name: Monitoraggio Biglietti Treno
 
 on:
   schedule:
-    - cron: '*/45 * * * *'
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
-
 
 jobs:
   build:
@@ -27,17 +26,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4
 
+      # ▼▼▼ SEZIONE DELLA CACHE MODIFICATA ▼▼▼
       - name: Cache dei file di stato
         uses: actions/cache@v3
         with:
           path: |
             dati_biglietti.txt
             ultima_notifica.txt
-          key: ${{ runner.os }}-dati-script
+          # Chiave di ripristino: cerca la cache più recente
+          key: ${{ runner.os }}-dati-script-${{ hashFiles('dati_biglietti.txt', 'ultima_notifica.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-dati-script-
 
       - name: Esecuzione dello script di monitoraggio
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          MONITOR_URL: ${{ secrets.MONITOR_URL }} # Aggiunto qui
-        run: python monitor_biglietti.py
+          MONITOR_URL: ${{ secrets.MONITOR_URL }}
+        run: python nome_del_tuo_script.py
+
