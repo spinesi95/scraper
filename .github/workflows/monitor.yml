@@ -43,5 +43,5 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           MONITOR_URL: ${{ secrets.MONITOR_URL }}
-        run: python nome_del_tuo_script.py
+        run: python monitor_biglietti.py
 
