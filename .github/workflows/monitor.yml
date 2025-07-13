@@ -1,0 +1,36 @@
+name: Monitoraggio Biglietti Treno
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del codice
+        uses: actions/checkout@v3
+
+      - name: Setup di Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Installazione delle dipendenze
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Cache del conteggio biglietti
+        uses: actions/cache@v3
+        with:
+          path: ultimo_conteggio.txt
+          key: ${{ runner.os }}-conteggio
+
+      - name: Esecuzione dello script di monitoraggio
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MONITOR_URL: ${{ secrets.MONITOR_URL }} # Aggiunto qui
+        run: python monitor_biglietti.py
