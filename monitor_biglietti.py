@@ -1,6 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import os
+import json 
 
 # --- CONFIGURAZIONE ---
 # Le credenziali e l'URL verranno letti dalle "Secrets" di GitHub
