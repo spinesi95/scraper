@@ -8,22 +8,22 @@ TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 URL = os.environ.get('MONITOR_URL')
 
-# File per salvare l'ultimo conteggio
-FILE_CONTEGGIO = 'ultimo_conteggio.txt'
+# Il file ora salva una "fotografia" testuale dei dati, non solo un numero.
+FILE_DATI = 'dati_biglietti.txt'
 # --- FINE CONFIGURAZIONE ---
 
-def leggi_ultimo_conteggio():
-    """Legge l'ultimo conteggio da un file."""
+def leggi_dati_precedenti():
+    """Legge i dati testuali dall'ultima esecuzione."""
     try:
-        with open(FILE_CONTEGGIO, 'r') as f:
-            return int(f.read().strip())
-    except (FileNotFoundError, ValueError):
+        with open(FILE_DATI, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
         return None
 
-def salva_conteggio(conteggio):
-    """Salva il conteggio corrente su file."""
-    with open(FILE_CONTEGGIO, 'w') as f:
-        f.write(str(conteggio))
+def salva_dati_attuali(dati):
+    """Salva i dati testuali correnti su file."""
+    with open(FILE_DATI, 'w', encoding='utf-8') as f:
+        f.write(dati)
 
 def invia_messaggio_telegram(messaggio):
     """Invia un messaggio a un utente o canale Telegram."""
@@ -32,7 +32,8 @@ def invia_messaggio_telegram(messaggio):
         return
 
     url_telegram = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {'chat_id': TELEGRAM_CHAT_ID, 'text': messaggio, 'parse_mode': 'HTML'}
+    # Disabilitiamo l'anteprima web per non avere doppioni del link
+    payload = {'chat_id': TELEGRAM_CHAT_ID, 'text': messaggio, 'parse_mode': 'HTML', 'disable_web_page_preview': 'true'}
     try:
         response = requests.post(url_telegram, data=payload)
         response.raise_for_status()
@@ -41,13 +42,12 @@ def invia_messaggio_telegram(messaggio):
         print(f"Errore durante l'invio del messaggio a Telegram: {e}")
 
 def controlla_biglietti():
-    """Controlla il numero di biglietti disponibili e notifica se cambia."""
+    """Estrae i dettagli dei biglietti e notifica le variazioni."""
     if not URL:
         print("Errore: URL di monitoraggio non impostato.")
         return
         
     print("Avvio controllo biglietti...")
-    ultimo_numero_biglietti = leggi_ultimo_conteggio()
 
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
@@ -56,25 +56,44 @@ def controlla_biglietti():
         soup = BeautifulSoup(response.text, 'html.parser')
 
         elementi_biglietti = soup.find_all('div', class_='ticket-info showing')
-        numero_biglietti_attuale = len(elementi_biglietti)
+        
+        lista_dettagli = []
+        if not elementi_biglietti:
+            dati_attuali = "Nessun biglietto disponibile."
+        else:
+            print(f"Trovati {len(elementi_biglietti)} biglietti.")
+            for ticket in elementi_biglietti:
+                orario_el = ticket.find('div', class_='col-20 block time')
+                tratta_el = ticket.find('div', class_='col-30 block mobile-pl tra_stat_title')
+                prezzo_el = ticket.find('div', class_='col-16 block mob-right')
 
-        print(f"Biglietti trovati: {numero_biglietti_attuale}. Ultimo conteggio: {ultimo_numero_biglietti}")
-
-        if ultimo_numero_biglietti is None:
-            # ▼▼▼ RIGA MODIFICATA ▼▼▼
-            messaggio = f"✅ Monitoraggio avviato.\nBiglietti trovati: {numero_biglietti_attuale}\n\n<b>URL:</b> {URL}"
+                orario = " ".join(orario_el.text.strip().split()) if orario_el else "N/D"
+                tratta = " ".join(tratta_el.text.strip().split()) if tratta_el else "N/D"
+                prezzo = " ".join(prezzo_el.text.strip().split()) if prezzo_el else "N/D"
+                
+                lista_dettagli.append(f"• {orario} | {tratta} | <b>{prezzo}</b>")
+            
+            dati_attuali = "\n".join(lista_dettagli)
+        
+        dati_precedenti = leggi_dati_precedenti()
+        
+        # ▼▼▼ RIGHE MODIFICATE ▼▼▼
+        link_pagina = f'<a href="{URL}">VAI ALLA PAGINA</a>'
+        
+        if dati_precedenti is None:
+            messaggio = f"✅ <b>Monitoraggio avviato</b>\n\n<b>Biglietti trovati:</b>\n{dati_attuali}\n\n{link_pagina}"
             invia_messaggio_telegram(messaggio)
-        elif numero_biglietti_attuale != ultimo_numero_biglietti:
-            # ▼▼▼ RIGA MODIFICATA ▼▼▼
-            messaggio = f"❗️<b>Variazione Biglietti!</b>\n\nPrecedente: {ultimo_numero_biglietti}\nAttuale: <b>{numero_biglietti_attuale}</b>\n\n<b>URL:</b> {URL}"
+        elif dati_attuali != dati_precedenti:
+            messaggio = f"❗️<b>Variazione Biglietti Rilevata!</b>❗️\n\n<b>Nuovi dati:</b>\n{dati_attuali}\n\n{link_pagina}"
             invia_messaggio_telegram(messaggio)
         else:
-            print("Nessuna variazione.")
+            print("Nessuna variazione rilevata.")
         
-        salva_conteggio(numero_biglietti_attuale)
+        salva_dati_attuali(dati_attuali)
 
     except Exception as e:
         print(f"Si è verificato un errore: {e}")
+        invia_messaggio_telegram(f"☠️ Errore nello script di monitoraggio:\n{e}")
 
 if __name__ == '__main__':
     controlla_biglietti()
