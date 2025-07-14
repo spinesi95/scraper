@@ -115,7 +115,7 @@ def controlla_biglietti():
             timestamp_notifica = leggi_timestamp_notifica()
             if (time.time() - timestamp_notifica) > (ORE_PER_NOTIFICA_ATTIVA * 3600):
                 messaggio = f"✅ <b>Monitoraggio attivo</b>\n<i>Nessuna variazione da >{ORE_PER_NOTIFICA_ATTIVA} ore (controllo delle {orario_controllo})</i>\n\n<b>Stato attuale:</b>\n{dati_attuali}"
-                print(time.time() & " " & timestamp_notifica & " " & (ORE_PER_NOTIFICA_ATTIVA * 3600))
+                print(str(time.time()) & " " & str(timestamp_notifica) & " " & str(ORE_PER_NOTIFICA_ATTIVA * 3600))
                 if invia_messaggio_telegram(messaggio, URL):
                     notifica_inviata = True
 
