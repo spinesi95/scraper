@@ -26,17 +26,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4
 
-      # ▼▼▼ SEZIONE DELLA CACHE MODIFICATA ▼▼▼
+      # ▼▼▼ SEZIONE DELLA CACHE CORRETTA ▼▼▼
       - name: Cache dei file di stato
         uses: actions/cache@v3
         with:
           path: |
             dati_biglietti.txt
             ultima_notifica.txt
-          # Chiave di ripristino: cerca la cache più recente
-          key: ${{ runner.os }}-dati-script-${{ hashFiles('dati_biglietti.txt', 'ultima_notifica.txt') }}
+          # La chiave è stabile, basata solo sul sistema operativo e sul nome del branch
+          key: ${{ runner.os }}-dati-script-${{ github.ref }}
+          # Ripristina la cache più recente che corrisponde a questa chiave
           restore-keys: |
-            ${{ runner.os }}-dati-script-
+            ${{ runner.os }}-dati-script-${{ github.ref }}
 
       - name: Esecuzione dello script di monitoraggio
         env:
