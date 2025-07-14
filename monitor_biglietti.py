@@ -37,12 +37,12 @@ def leggi_timestamp_notifica():
     except (FileNotFoundError, ValueError):
         return None
 
-timestamp_attuale = int(time.time())
+timestamp_attuale = int(time.time()
 
 def salva_timestamp_notifica():
     """Salva il timestamp attuale dopo aver inviato una notifica."""
     with open(FILE_TIMESTAMP_NOTIFICA, 'w') as f:
-        f.write(timestamp_attuale))
+        f.write(timestamp_attuale)
 
 def invia_messaggio_telegram(messaggio, url_bottone):
     """Invia un messaggio con un bottone inline."""
