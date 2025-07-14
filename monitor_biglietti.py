@@ -37,7 +37,7 @@ def leggi_timestamp_notifica():
     except (FileNotFoundError, ValueError):
         return None
 
-timestamp_attuale = int(time.time()
+timestamp_attuale = int(time.time())
 
 def salva_timestamp_notifica():
     """Salva il timestamp attuale dopo aver inviato una notifica."""
