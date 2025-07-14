@@ -115,7 +115,7 @@ def controlla_biglietti():
             print("Nessuna variazione rilevata.")
             # Controlla se inviare la notifica "keep-alive"
             timestamp_notifica = leggi_timestamp_notifica()
-            if (time.time() - timestamp_notifica) > (ORE_PER_NOTIFICA_ATTIVA * 3600):
+            if (timestamp_attuale - timestamp_notifica) > (ORE_PER_NOTIFICA_ATTIVA * 3600):
                 messaggio = f"✅ <b>Monitoraggio attivo</b>\n<i>Nessuna variazione da >{ORE_PER_NOTIFICA_ATTIVA} ore (controllo delle {orario_controllo})</i>\n\n<b>Stato attuale:</b>\n{dati_attuali}"
                 print(time.time(), " ",  timestamp_notifica, " ", (ORE_PER_NOTIFICA_ATTIVA * 3600))
                 
