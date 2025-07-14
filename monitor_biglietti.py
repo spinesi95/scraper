@@ -121,7 +121,7 @@ def controlla_biglietti():
                 if invia_messaggio_telegram(messaggio, URL):
                     notifica_inviata = True
                     
-            else
+            else:
                 print("Invio messaggio non necessario")
 
         # Se una notifica è stata inviata con successo, aggiorna i file
