@@ -124,6 +124,7 @@ def controlla_biglietti():
         if notifica_inviata:
             salva_dati_attuali(dati_attuali)
             salva_timestamp_notifica()
+            print("Cache aggiornata")
 
     except Exception as e:
         print(f"Si è verificato un errore: {e}")
