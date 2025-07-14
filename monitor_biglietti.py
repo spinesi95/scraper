@@ -33,7 +33,7 @@ def leggi_timestamp_notifica():
     """Legge il timestamp dell'ultima notifica inviata."""
     try:
         with open(FILE_TIMESTAMP_NOTIFICA, 'r') as f:
-            return int(f.read())
+            return f.read()
     except (FileNotFoundError, ValueError):
         return None
 
@@ -115,7 +115,7 @@ def controlla_biglietti():
             print("Nessuna variazione rilevata.")
             # Controlla se inviare la notifica "keep-alive"
             timestamp_notifica = leggi_timestamp_notifica()
-            if (timestamp_attuale - timestamp_notifica) > (ORE_PER_NOTIFICA_ATTIVA * 3600):
+            if (timestamp_attuale - int(timestamp_notifica)) > (ORE_PER_NOTIFICA_ATTIVA * 3600):
                 messaggio = f"✅ <b>Monitoraggio attivo</b>\n<i>Nessuna variazione da >{ORE_PER_NOTIFICA_ATTIVA} ore (controllo delle {orario_controllo})</i>\n\n<b>Stato attuale:</b>\n{dati_attuali}"
                  
                 if invia_messaggio_telegram(messaggio, URL):
