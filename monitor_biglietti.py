@@ -33,14 +33,16 @@ def leggi_timestamp_notifica():
     """Legge il timestamp dell'ultima notifica inviata."""
     try:
         with open(FILE_TIMESTAMP_NOTIFICA, 'r') as f:
-            return float(f.read())
+            return int(f.read())
     except (FileNotFoundError, ValueError):
         return None
+
+timestamp_attuale = int(time.time())
 
 def salva_timestamp_notifica():
     """Salva il timestamp attuale dopo aver inviato una notifica."""
     with open(FILE_TIMESTAMP_NOTIFICA, 'w') as f:
-        f.write(str(time.time()))
+        f.write(timestamp_attuale))
 
 def invia_messaggio_telegram(messaggio, url_bottone):
     """Invia un messaggio con un bottone inline."""
