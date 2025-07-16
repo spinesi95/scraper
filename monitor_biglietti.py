@@ -13,8 +13,8 @@ TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 URL = os.environ.get('MONITOR_URL')
 
-FILE_DATI = os.path.join(RENDER_DATA_DIR, 'dati_biglietti1.txt')
-FILE_TIMESTAMP_NOTIFICA = os.path.join(RENDER_DATA_DIR, 'ultima_notifica1.txt')
+FILE_DATI = os.path.join(RENDER_DATA_DIR, 'dati_biglietti.txt')
+FILE_TIMESTAMP_NOTIFICA = os.path.join(RENDER_DATA_DIR, 'ultima_notifica.txt')
 ORE_PER_NOTIFICA_ATTIVA = 8
 # --- FINE CONFIGURAZIONE ---
 
@@ -119,8 +119,5 @@ def controlla_biglietti():
 
 # --- Punto di ingresso dello script ---
 if __name__ == '__main__':
-    # ▼▼▼ RIGA AGGIUNTA ▼▼▼
-    # Assicura che la cartella per i dati esista prima di provare a usarla
-    os.makedirs(RENDER_DATA_DIR, exist_ok=True)
-    
+    # La riga os.makedirs è stata rimossa perché Render crea la cartella /var/data automaticamente.
     controlla_biglietti()
