@@ -1,53 +1,40 @@
 import requests
 from bs4 import BeautifulSoup
 import os
-import json 
+import json
 from datetime import datetime
 import time
+
+# Percorso per il disco persistente di Render
+RENDER_DATA_DIR = "/var/data"
+
 # --- CONFIGURAZIONE ---
-# Le credenziali e l'URL verranno letti dalle "Secrets" di GitHub
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 URL = os.environ.get('MONITOR_URL')
 
-# Il file ora salva una "fotografia" testuale dei dati, non solo un numero.
-FILE_DATI = 'dati_biglietti.txt'
-FILE_TIMESTAMP_NOTIFICA = 'ultima_notifica.txt'
+FILE_DATI = os.path.join(RENDER_DATA_DIR, 'dati_biglietti.txt')
+FILE_TIMESTAMP_NOTIFICA = os.path.join(RENDER_DATA_DIR, 'ultima_notifica.txt')
 ORE_PER_NOTIFICA_ATTIVA = 8
 # --- FINE CONFIGURAZIONE ---
 
-def leggi_dati_precedenti():
-    """Legge i dati dei biglietti dall'ultima esecuzione."""
+def leggi_file(nome_file):
+    """Funzione generica per leggere un file."""
     try:
-        with open(FILE_DATI, 'r', encoding='utf-8') as f:
-            return f.read()
+        with open(nome_file, 'r', encoding='utf-8') as f:
+            return f.read().strip()
     except FileNotFoundError:
         return None
 
-def salva_dati_attuali(dati):
-    """Salva i dati dei biglietti correnti su file."""
-    with open(FILE_DATI, 'w', encoding='utf-8') as f:
-        f.write(dati)
-
-def leggi_timestamp_notifica():
-    """Legge il timestamp dell'ultima notifica inviata."""
-    try:
-        with open(FILE_TIMESTAMP_NOTIFICA, 'r') as f:
-            return f.read()
-    except (FileNotFoundError, ValueError):
-        return None
-
-timestamp_attuale = int(time.time())
-
-def salva_timestamp_notifica():
-    """Salva il timestamp attuale dopo aver inviato una notifica."""
-    with open(FILE_TIMESTAMP_NOTIFICA, 'w') as f:
-        f.write(str(timestamp_attuale))
+def scrivi_file(nome_file, contenuto):
+    """Funzione generica per scrivere su un file."""
+    with open(nome_file, 'w', encoding='utf-8') as f:
+        f.write(str(contenuto))
 
 def invia_messaggio_telegram(messaggio, url_bottone):
     """Invia un messaggio con un bottone inline."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("Errore: Token o Chat ID di Telegram non impostati.")
+        print("Errore: Credenziali Telegram non impostate.")
         return False
     
     tastiera = {'inline_keyboard': [[{'text': '➡️ VAI ALLA PAGINA ⬅️', 'url': url_bottone}]]}
@@ -63,13 +50,13 @@ def invia_messaggio_telegram(messaggio, url_bottone):
         response = requests.post(url_api, data=payload)
         response.raise_for_status()
         print("Messaggio inviato con successo a Telegram!")
-        return True # Ritorna True se l'invio ha successo
+        return True
     except requests.exceptions.RequestException as e:
-        print(f"Errore durante l'invio del messaggio a Telegram: {e}")
-        return False # Ritorna False se l'invio fallisce
+        print(f"Errore durante l'invio del messaggio: {e}")
+        return False
 
 def controlla_biglietti():
-    """Estrae i dettagli dei biglietti e notifica le variazioni o se sono passate 8 ore."""
+    """Estrae i dettagli dei biglietti e gestisce le notifiche."""
     if not URL:
         print("Errore: URL di monitoraggio non impostato.")
         return
@@ -98,42 +85,42 @@ def controlla_biglietti():
                 lista_dettagli.append(f"• {orario} | {tratta} | <b>{prezzo}</b>")
             dati_attuali = "\n".join(lista_dettagli)
         
-        dati_precedenti = leggi_dati_precedenti()
+        dati_precedenti = leggi_file(FILE_DATI)
         orario_controllo = datetime.now().strftime("%H:%M del %d/%m/%Y")
         
-        notifica_inviata = False
+        notifica_da_inviare = False
+        messaggio = ""
 
         if dati_precedenti is None:
             messaggio = f"✅ <b>Monitoraggio avviato</b>\n<i>Controllo delle {orario_controllo}</i>\n\n<b>Biglietti trovati:</b>\n{dati_attuali}"
-            if invia_messaggio_telegram(messaggio, URL):
-                notifica_inviata = True
+            notifica_da_inviare = True
         elif dati_attuali != dati_precedenti:
             messaggio = f"❗️<b>Variazione Rilevata!</b>❗️\n<i>Controllo delle {orario_controllo}</i>\n\n<b>Nuovi dati:</b>\n{dati_attuali}"
-            if invia_messaggio_telegram(messaggio, URL):
-                notifica_inviata = True
+            notifica_da_inviare = True
         else:
             print("Nessuna variazione rilevata.")
-            # Controlla se inviare la notifica "keep-alive"
-            timestamp_notifica = leggi_timestamp_notifica()
-            if (timestamp_attuale - int(timestamp_notifica)) > (ORE_PER_NOTIFICA_ATTIVA * 3600):
-                messaggio = f"✅ <b>Monitoraggio attivo</b>\n<i>Nessuna variazione da >{ORE_PER_NOTIFICA_ATTIVA} ore (controllo delle {orario_controllo})</i>\n\n<b>Stato attuale:</b>\n{dati_attuali}"
-                 
-                if invia_messaggio_telegram(messaggio, URL):
-                    notifica_inviata = True
-                    
-            else:
-                
-                print("Invio messaggio non necessario")
+            timestamp_str = leggi_file(FILE_TIMESTAMP_NOTIFICA)
+            if timestamp_str:
+                secondi_da_ultima_notifica = time.time() - float(timestamp_str)
+                if secondi_da_ultima_notifica > (ORE_PER_NOTIFICA_ATTIVA * 3600):
+                    messaggio = f"✅ <b>Monitoraggio attivo</b>\n<i>Nessuna variazione da >{ORE_PER_NOTIFICA_ATTIVA} ore (controllo delle {orario_controllo})</i>\n\n<b>Stato attuale:</b>\n{dati_attuali}"
+                    notifica_da_inviare = True
 
-        # Se una notifica è stata inviata con successo, aggiorna i file
-        if notifica_inviata:
-            salva_dati_attuali(dati_attuali)
-            salva_timestamp_notifica()
-            print("Cache aggiornata")
+        if notifica_da_inviare:
+            if invia_messaggio_telegram(messaggio, URL):
+                print("Aggiornamento file di stato...")
+                scrivi_file(FILE_DATI, dati_attuali)
+                scrivi_file(FILE_TIMESTAMP_NOTIFICA, time.time())
+                print("File aggiornati con successo.")
 
     except Exception as e:
-        print(f"Si è verificato un errore: {e}")
+        print(f"Si è verificato un errore critico: {e}")
         invia_messaggio_telegram(f"☠️ Errore nello script alle {datetime.now().strftime('%H:%M')}:\n<pre>{e}</pre>", URL)
 
+# --- Punto di ingresso dello script ---
 if __name__ == '__main__':
+    # ▼▼▼ RIGA AGGIUNTA ▼▼▼
+    # Assicura che la cartella per i dati esista prima di provare a usarla
+    os.makedirs(RENDER_DATA_DIR, exist_ok=True)
+    
     controlla_biglietti()
