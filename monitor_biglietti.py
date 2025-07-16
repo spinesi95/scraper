@@ -13,8 +13,8 @@ TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 URL = os.environ.get('MONITOR_URL')
 
-FILE_DATI = os.path.join(RENDER_DATA_DIR, 'dati_biglietti.txt')
-FILE_TIMESTAMP_NOTIFICA = os.path.join(RENDER_DATA_DIR, 'ultima_notifica.txt')
+FILE_DATI = os.path.join(RENDER_DATA_DIR, 'dati_biglietti1.txt')
+FILE_TIMESTAMP_NOTIFICA = os.path.join(RENDER_DATA_DIR, 'ultima_notifica1.txt')
 ORE_PER_NOTIFICA_ATTIVA = 8
 # --- FINE CONFIGURAZIONE ---
 
