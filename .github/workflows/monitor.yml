@@ -26,23 +26,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4
 
-      # ▼▼▼ SEZIONE DELLA CACHE CORRETTA ▼▼▼
-      - name: Cache dei file di stato
-        uses: actions/cache@v3
-        with:
-          path: |
-            dati_biglietti.txt
-            ultima_notifica.txt
-          # La chiave è stabile, basata solo sul sistema operativo e sul nome del branch
-          key: ${{ runner.os }}-dati-script-${{ github.ref }}
-          # Ripristina la cache più recente che corrisponde a questa chiave
-          restore-keys: |
-            ${{ runner.os }}-dati-script-${{ github.ref }}
+      # ▼▼▼ PASSAGGIO DI DEBUG AGGIUNTO ▼▼▼
+      - name: DEBUG - Controlla le variabili d'ambiente
+        run: |
+          echo "Verifico le variabili TELEGRAM..."
+          env | grep TELEGRAM
+          echo "Verifico le variabili JSONBIN..."
+          env | grep JSON
+          echo "Verifico l'URL..."
+          env | grep MONITOR
 
       - name: Esecuzione dello script di monitoraggio
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           MONITOR_URL: ${{ secrets.MONITOR_URL }}
+          JSONBIN_API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          JSONBIN_ID: ${{ secrets.JSONBIN_ID }}
         run: python monitor_biglietti.py
-
