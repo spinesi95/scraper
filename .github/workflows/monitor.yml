@@ -2,7 +2,7 @@ name: Monitoraggio Biglietti Treno
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '*/50 * * * *'
   workflow_dispatch:
 
 concurrency:
@@ -26,17 +26,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4
 
-      # ▼▼▼ PASSAGGIO DI DEBUG AGGIUNTO ▼▼▼
-      - name: DEBUG - Controlla le variabili d'ambiente
-        run: |
-          echo "Verifico le variabili TELEGRAM..."
-          env | grep TELEGRAM
-          echo "Verifico le variabili JSONBIN..."
-          env | grep JSON
-          echo "Verifico l'URL..."
-          env | grep MONITOR
-
       - name: Esecuzione dello script di monitoraggio
+        # ▼▼▼ QUESTA SEZIONE DEVE CONTENERE TUTTE E 5 LE VARIABILI ▼▼▼
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
