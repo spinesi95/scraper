@@ -1,4 +1,5 @@
 import requests
+from bs4 import BeautifulSoup  # <-- RIGA MANCANTE DA AGGIUNGERE
 import os
 import json
 from datetime import datetime
