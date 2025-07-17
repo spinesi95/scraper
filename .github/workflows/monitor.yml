@@ -2,7 +2,7 @@ name: Monitoraggio Biglietti Treno
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/8 * * * *'
   workflow_dispatch:
 
 concurrency:
