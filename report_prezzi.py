@@ -1,9 +1,10 @@
 import requests
-from bs4 import BeautifulSoup  # <-- RIGA MANCANTE DA AGGIUNGERE
+from bs4 import BeautifulSoup
 import os
 import json
-from datetime import datetime
+from datetime import date, timedelta
 import time
+
 
 # --- CONFIGURAZIONE ---
 # Legge i dati esclusivamente dai "Secrets" (variabili d'ambiente)
