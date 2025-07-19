@@ -11,6 +11,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
+def escape_markdown_v2(text):
+    """Esegue l'escape dei caratteri speciali per la modalità MarkdownV2 di Telegram."""
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    return ''.join(f'\\{char}' if char in escape_chars else char for char in str(text))
+
 def send_telegram_message(message):
     """Invia un messaggio a una chat di Telegram."""
     bot_token = os.environ.get('TELEGRAM_BOT_TOKEN')
@@ -20,18 +25,11 @@ def send_telegram_message(message):
         print("ERRORE: Le variabili d'ambiente TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID non sono impostate.")
         return
 
-    # Funzione per l'escape dei caratteri speciali per la modalità MarkdownV2 di Telegram
-    def escape_markdown_v2(text):
-        escape_chars = r'_*[]()~`>#+-=|{}.!'
-        return ''.join(f'\\{char}' if char in escape_chars else char for char in str(text))
-
-    # Formattazione del messaggio con escape dei caratteri
-    formatted_message = escape_markdown_v2(message)
-
+    # Il messaggio arriva già formattato, non serve fare l'escape qui
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {
         'chat_id': chat_id,
-        'text': formatted_message,
+        'text': message,
         'parse_mode': 'MarkdownV2'
     }
     
@@ -73,8 +71,8 @@ def parse_duration(duration_str):
         return 9999
     return total_minutes
 
-def scrape_results_for_date(driver, search_date, params, start_time_filter, end_time_filter, max_duration_minutes):
-    """Esegue lo scraping per una data e restituisce una lista di risultati testuali."""
+def scrape_results_for_date(driver, search_date, params, start_time_filter, end_time_filter, max_duration_minutes, price_threshold):
+    """Esegue lo scraping per una data e restituisce una lista di risultati testuali formattati."""
     results = []
     full_url = f"https://www.lefrecce.it/Channels.Website.WEB/website/auth/handoff?{urllib.parse.urlencode(params)}"
     driver.get(full_url)
@@ -110,14 +108,24 @@ def scrape_results_for_date(driver, search_date, params, start_time_filter, end_
             if (start_time_filter <= current_departure_time <= end_time_filter) and (duration_in_minutes <= max_duration_minutes):
                 trains_found_in_range += 1
                 price_element = train.find('title2', class_='solution-price-size')
-                price = price_element.text.strip() if price_element else "N/D"
-                results.append(f"  🕒 {departure_time_str} -> {arrival_time_str} ({duration_str}) | Prezzo: a partire da {price}")
+                price_str = price_element.text.strip() if price_element else "N/D"
+                
+                # Formattazione condizionale del prezzo
+                price_formatted = escape_markdown_v2(f"a partire da {price_str}")
+                try:
+                    price_float = float(price_str.replace('€', '').replace(',', '.'))
+                    if price_float < price_threshold:
+                        price_formatted = f"*💰 Prezzo: a partire da {escape_markdown_v2(price_str)}*"
+                except (ValueError, TypeError):
+                    pass # Lascia il prezzo non formattato se non è un numero valido
+
+                results.append(f"  🕒 {escape_markdown_v2(departure_time_str)} -> {escape_markdown_v2(arrival_time_str)} ({escape_markdown_v2(duration_str)}) | {price_formatted}")
         
         if trains_found_in_range == 0:
-            results.append("  -> Nessun treno trovato che soddisfi tutti i filtri per questa data.")
+            results.append(escape_markdown_v2("  -> Nessun treno trovato che soddisfi tutti i filtri per questa data."))
 
     except Exception as e:
-        results.append(f"  -> Non è stato possibile caricare i risultati. Errore: {e}")
+        results.append(escape_markdown_v2(f"  -> Non è stato possibile caricare i risultati. Errore: {e}"))
     
     return results
 
@@ -140,7 +148,7 @@ def main_scraper():
         if fridays:
             print("\n" + "#"*20 + " INIZIO RICERCA VENERDÌ (ROMA -> MILANO) " + "#"*20)
             for date in fridays:
-                day_report = [f"*🚄 Ricerca Venerdì (Roma -> Milano)*\n*Data: {date}*"]
+                day_report = [f"*🚄 Ricerca Venerdì \\(Roma \\-> Milano\\)*\n*Data: {escape_markdown_v2(date)}*"]
                 params = {
                     'action': 'searchTickets', 'lang': 'it', 'referrer': 'www.trenitalia.com',
                     'tripType': 'on', 'ynFlexibleDates': 'off', 'departureDate': date,
@@ -151,17 +159,18 @@ def main_scraper():
                 results = scrape_results_for_date(driver, date, params, 
                                                   start_time_filter=time_obj(16, 0), 
                                                   end_time_filter=time_obj(18, 30), 
-                                                  max_duration_minutes=200)
+                                                  max_duration_minutes=200,
+                                                  price_threshold=42.0)
                 day_report.extend(results)
                 send_telegram_message("\n".join(day_report))
-                time.sleep(1) # Pausa di 1 secondo per non sovraccaricare l'API di Telegram
+                time.sleep(1)
 
         # --- 2. RICERCA DOMENICHE (RITORNO) ---
         sundays = get_target_weekdays(50, 120, 6)
         if sundays:
             print("\n" + "#"*20 + " INIZIO RICERCA DOMENICHE (MILANO -> ROMA) " + "#"*20)
             for date in sundays:
-                day_report = [f"*🚄 Ricerca Domeniche (Milano -> Roma)*\n*Data: {date}*"]
+                day_report = [f"*🚄 Ricerca Domeniche \\(Milano \\-> Roma\\)*\n*Data: {escape_markdown_v2(date)}*"]
                 params = {
                     'action': 'searchTickets', 'lang': 'it', 'referrer': 'www.trenitalia.com',
                     'tripType': 'on', 'ynFlexibleDates': 'off', 'departureDate': date,
@@ -169,4 +178,18 @@ def main_scraper():
                     'arrivalStation': 'Roma Termini', 'selectedTrainType': 'tutti',
                     'noOfChildren': '0', 'noOfAdults': '1',
                 }
-                results = scrape_results_for_date(driver, date, params
+                results = scrape_results_for_date(driver, date, params, 
+                                                  start_time_filter=time_obj(14, 0), 
+                                                  end_time_filter=time_obj(17, 0), # Filtro aggiornato
+                                                  max_duration_minutes=200,
+                                                  price_threshold=42.0)
+                day_report.extend(results)
+                send_telegram_message("\n".join(day_report))
+                time.sleep(1)
+
+    finally:
+        print("\nRicerca completata. Chiusura del browser.")
+        driver.quit()
+
+if __name__ == "__main__":
+    main_scraper()
