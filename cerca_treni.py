@@ -25,11 +25,14 @@ def send_telegram_message(message):
         print("ERRORE: Le variabili d'ambiente TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID non sono impostate.")
         return
 
-    # Il messaggio arriva già formattato e con l'escape corretto
+    # Esegui l'escape globale e poi sostituisci i segnaposto per il grassetto
+    escaped_message = escape_markdown_v2(message)
+    final_message = escaped_message.replace(escape_markdown_v2("__BOLD_START__"), "*").replace(escape_markdown_v2("__BOLD_END__"), "*")
+
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {
         'chat_id': chat_id,
-        'text': message,
+        'text': final_message,
         'parse_mode': 'MarkdownV2'
     }
     
@@ -72,7 +75,7 @@ def parse_duration(duration_str):
     return total_minutes
 
 def scrape_results_for_date(driver, search_date, params, start_time_filter, end_time_filter, max_duration_minutes, price_threshold):
-    """Esegue lo scraping per una data e restituisce una lista di risultati testuali formattati."""
+    """Esegue lo scraping per una data e restituisce una lista di risultati testuali GREZZI."""
     results = []
     full_url = f"https://www.lefrecce.it/Channels.Website.WEB/website/auth/handoff?{urllib.parse.urlencode(params)}"
     driver.get(full_url)
@@ -89,6 +92,7 @@ def scrape_results_for_date(driver, search_date, params, start_time_filter, end_
         
         trains_found_in_range = 0
         for train in train_results:
+            # ... (estrazione dati come prima)
             time_elements = train.select('div.od-info b')
             duration_element = train.select_one('div.duration strong')
 
@@ -110,25 +114,24 @@ def scrape_results_for_date(driver, search_date, params, start_time_filter, end_
                 price_element = train.find('title2', class_='solution-price-size')
                 price_str = price_element.text.strip() if price_element else "N/D"
                 
-                # Formattazione condizionale del prezzo
-                price_formatted = escape_markdown_v2(f"a partire da {price_str}")
+                # **NUOVA LOGICA**
+                # Crea la stringa del prezzo con i segnaposto se necessario
+                price_formatted = f"Prezzo: a partire da {price_str}"
                 try:
                     price_float = float(price_str.replace('€', '').replace(',', '.'))
                     if price_float < price_threshold:
-                        # Qui aggiungiamo i caratteri per il grassetto (*) che NON devono essere "escapati"
-                        price_formatted = f"*💰 Prezzo: a partire da {escape_markdown_v2(price_str)}*"
+                        price_formatted = f"__BOLD_START__💰 Prezzo: a partire da {price_str}__BOLD_END__"
                 except (ValueError, TypeError):
-                    pass 
+                    pass
 
-                # **LA CORREZIONE È QUI**
-                # Ho aggiunto l'escape manuale per la freccia "->" e per le parentesi "()"
-                results.append(f"  🕒 {escape_markdown_v2(departure_time_str)} \\-> {escape_markdown_v2(arrival_time_str)} \\({escape_markdown_v2(duration_str)}\\) | {price_formatted}")
+                # Aggiungi la riga GREZZA alla lista dei risultati
+                results.append(f"  🕒 {departure_time_str} -> {arrival_time_str} ({duration_str}) | {price_formatted}")
         
         if trains_found_in_range == 0:
-            results.append(escape_markdown_v2("  -> Nessun treno trovato che soddisfi tutti i filtri per questa data."))
+            results.append("  -> Nessun treno trovato che soddisfi tutti i filtri per questa data.")
 
     except Exception as e:
-        results.append(escape_markdown_v2(f"  -> Non è stato possibile caricare i risultati. Errore: {e}"))
+        results.append(f"  -> Non è stato possibile caricare i risultati. Errore: {e}")
     
     return results
 
@@ -151,7 +154,8 @@ def main_scraper():
         if fridays:
             print("\n" + "#"*20 + " INIZIO RICERCA VENERDÌ (ROMA -> MILANO) " + "#"*20)
             for date in fridays:
-                day_report = [f"*🚄 Ricerca Venerdì \\(Roma \\-> Milano\\)*\n*Data: {escape_markdown_v2(date)}*"]
+                # Titolo grezzo con i segnaposto per il grassetto
+                day_report = [f"*🚄 Ricerca Venerdì (Roma -> Milano)*\n*Data: {date}*"]
                 params = {
                     'action': 'searchTickets', 'lang': 'it', 'referrer': 'www.trenitalia.com',
                     'tripType': 'on', 'ynFlexibleDates': 'off', 'departureDate': date,
@@ -173,7 +177,7 @@ def main_scraper():
         if sundays:
             print("\n" + "#"*20 + " INIZIO RICERCA DOMENICHE (MILANO -> ROMA) " + "#"*20)
             for date in sundays:
-                day_report = [f"*🚄 Ricerca Domeniche \\(Milano \\-> Roma\\)*\n*Data: {escape_markdown_v2(date)}*"]
+                day_report = [f"*🚄 Ricerca Domeniche (Milano -> Roma)*\n*Data: {date}*"]
                 params = {
                     'action': 'searchTickets', 'lang': 'it', 'referrer': 'www.trenitalia.com',
                     'tripType': 'on', 'ynFlexibleDates': 'off', 'departureDate': date,
