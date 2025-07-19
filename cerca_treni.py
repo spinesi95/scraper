@@ -20,14 +20,18 @@ def send_telegram_message(message):
         print("ERRORE: Le variabili d'ambiente TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID non sono impostate.")
         return
 
-    # Telegram richiede di "escapare" alcuni caratteri speciali per il MarkdownV2
-    escape_chars = r'_*[]()~`>#+-=|{}.!'
-    message = ''.join(f'\\{char}' if char in escape_chars else char for char in message)
+    # Funzione per l'escape dei caratteri speciali per la modalità MarkdownV2 di Telegram
+    def escape_markdown_v2(text):
+        escape_chars = r'_*[]()~`>#+-=|{}.!'
+        return ''.join(f'\\{char}' if char in escape_chars else char for char in str(text))
+
+    # Formattazione del messaggio con escape dei caratteri
+    formatted_message = escape_markdown_v2(message)
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {
         'chat_id': chat_id,
-        'text': message,
+        'text': formatted_message,
         'parse_mode': 'MarkdownV2'
     }
     
@@ -35,7 +39,7 @@ def send_telegram_message(message):
     if response.status_code == 200:
         print("✅ Messaggio inviato con successo a Telegram!")
     else:
-        print(f"❌ Errore nell'invio del messaggio a Telegram: {response.text}")
+        print(f"❌ Errore nell'invio del messaggio a Telegram: {response.status_code} - {response.text}")
 
 def get_target_weekdays(start_days, end_days, weekday_to_find):
     """Genera una lista di date per un dato giorno della settimana."""
@@ -118,9 +122,7 @@ def scrape_results_for_date(driver, search_date, params, start_time_filter, end_
     return results
 
 def main_scraper():
-    """Funzione principale che avvia il browser, esegue le ricerche e invia il report."""
-    final_report = []
-
+    """Funzione principale che avvia il browser ed esegue le ricerche."""
     print("🤖 Avvio del browser in modalità headless...")
     
     options = webdriver.ChromeOptions()
@@ -136,9 +138,9 @@ def main_scraper():
         # --- 1. RICERCA VENERDÌ (ANDATA) ---
         fridays = get_target_weekdays(50, 120, 4)
         if fridays:
-            final_report.append("*🚄 Ricerca Venerdì (Roma -> Milano)*")
+            print("\n" + "#"*20 + " INIZIO RICERCA VENERDÌ (ROMA -> MILANO) " + "#"*20)
             for date in fridays:
-                final_report.append(f"\n*Data: {date}*")
+                day_report = [f"*🚄 Ricerca Venerdì (Roma -> Milano)*\n*Data: {date}*"]
                 params = {
                     'action': 'searchTickets', 'lang': 'it', 'referrer': 'www.trenitalia.com',
                     'tripType': 'on', 'ynFlexibleDates': 'off', 'departureDate': date,
@@ -150,14 +152,16 @@ def main_scraper():
                                                   start_time_filter=time_obj(16, 0), 
                                                   end_time_filter=time_obj(18, 30), 
                                                   max_duration_minutes=200)
-                final_report.extend(results)
+                day_report.extend(results)
+                send_telegram_message("\n".join(day_report))
+                time.sleep(1) # Pausa di 1 secondo per non sovraccaricare l'API di Telegram
 
         # --- 2. RICERCA DOMENICHE (RITORNO) ---
         sundays = get_target_weekdays(50, 120, 6)
         if sundays:
-            final_report.append("\n\n*🚄 Ricerca Domeniche (Milano -> Roma)*")
+            print("\n" + "#"*20 + " INIZIO RICERCA DOMENICHE (MILANO -> ROMA) " + "#"*20)
             for date in sundays:
-                final_report.append(f"\n*Data: {date}*")
+                day_report = [f"*🚄 Ricerca Domeniche (Milano -> Roma)*\n*Data: {date}*"]
                 params = {
                     'action': 'searchTickets', 'lang': 'it', 'referrer': 'www.trenitalia.com',
                     'tripType': 'on', 'ynFlexibleDates': 'off', 'departureDate': date,
@@ -165,21 +169,4 @@ def main_scraper():
                     'arrivalStation': 'Roma Termini', 'selectedTrainType': 'tutti',
                     'noOfChildren': '0', 'noOfAdults': '1',
                 }
-                results = scrape_results_for_date(driver, date, params, 
-                                                  start_time_filter=time_obj(14, 0), 
-                                                  end_time_filter=time_obj(23, 59),
-                                                  max_duration_minutes=200)
-                final_report.extend(results)
-
-    finally:
-        print("\nRicerca completata. Chiusura del browser.")
-        driver.quit()
-        
-        # Invia il report finale a Telegram
-        if final_report:
-            send_telegram_message("\n".join(final_report))
-        else:
-            print("Nessuna data da controllare, nessun messaggio inviato.")
-
-if __name__ == "__main__":
-    main_scraper()
+                results = scrape_results_for_date(driver, date, params
