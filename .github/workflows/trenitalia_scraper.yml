@@ -1,0 +1,36 @@
+# Nome del workflow che apparirà nella tab "Actions" di GitHub
+name: Scraper Trenitalia
+
+on:
+  # Permette di avviare il workflow manualmente dalla pagina Actions
+  workflow_dispatch:
+
+  # Esegue lo script automaticamente ogni giorno alle 7:00 UTC (le 9:00 italiane con ora legale)
+  schedule:
+    - cron: '0 7 * * *'
+
+jobs:
+  scrape:
+    # Esegue il job su un server virtuale con l'ultima versione di Ubuntu
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Scarica il codice del tuo repository sul server virtuale
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Imposta l'ambiente Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10' # Puoi usare una versione recente di Python
+
+      # 3. Installa le librerie Python necessarie dal file requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r /trent/requirements.txt
+      
+      # 4. Esegue lo script Python
+      - name: Run Python Scraper
+        run: python /trent/cerca_treni.py
