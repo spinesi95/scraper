@@ -25,7 +25,7 @@ def send_telegram_message(message):
         print("ERRORE: Le variabili d'ambiente TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID non sono impostate.")
         return
 
-    # Il messaggio arriva già formattato, non serve fare l'escape qui
+    # Il messaggio arriva già formattato e con l'escape corretto
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {
         'chat_id': chat_id,
@@ -115,11 +115,14 @@ def scrape_results_for_date(driver, search_date, params, start_time_filter, end_
                 try:
                     price_float = float(price_str.replace('€', '').replace(',', '.'))
                     if price_float < price_threshold:
+                        # Qui aggiungiamo i caratteri per il grassetto (*) che NON devono essere "escapati"
                         price_formatted = f"*💰 Prezzo: a partire da {escape_markdown_v2(price_str)}*"
                 except (ValueError, TypeError):
-                    pass # Lascia il prezzo non formattato se non è un numero valido
+                    pass 
 
-                results.append(f"  🕒 {escape_markdown_v2(departure_time_str)} -> {escape_markdown_v2(arrival_time_str)} ({escape_markdown_v2(duration_str)}) | {price_formatted}")
+                # **LA CORREZIONE È QUI**
+                # Ho aggiunto l'escape manuale per la freccia "->" e per le parentesi "()"
+                results.append(f"  🕒 {escape_markdown_v2(departure_time_str)} \\-> {escape_markdown_v2(arrival_time_str)} \\({escape_markdown_v2(duration_str)}\\) | {price_formatted}")
         
         if trains_found_in_range == 0:
             results.append(escape_markdown_v2("  -> Nessun treno trovato che soddisfi tutti i filtri per questa data."))
@@ -180,7 +183,7 @@ def main_scraper():
                 }
                 results = scrape_results_for_date(driver, date, params, 
                                                   start_time_filter=time_obj(14, 0), 
-                                                  end_time_filter=time_obj(17, 0), # Filtro aggiornato
+                                                  end_time_filter=time_obj(17, 0), 
                                                   max_duration_minutes=200,
                                                   price_threshold=42.0)
                 day_report.extend(results)
