@@ -1,3 +1,5 @@
+import os
+import requests
 import time
 from datetime import datetime, timedelta, time as time_obj
 import urllib.parse
@@ -9,49 +11,118 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
-def get_target_fridays(start_days, end_days):
-    """
-    Genera una lista di date (stringhe formattate) per tutti i venerdì
-    compresi tra 'start_days' e 'end_days' giorni da oggi.
-    """
-    fridays = []
+def send_telegram_message(message):
+    """Invia un messaggio a una chat di Telegram."""
+    bot_token = os.environ.get('TELEGRAM_BOT_TOKEN')
+    chat_id = os.environ.get('TELEGRAM_CHAT_ID')
+
+    if not bot_token or not chat_id:
+        print("ERRORE: Le variabili d'ambiente TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID non sono impostate.")
+        return
+
+    # Telegram richiede di "escapare" alcuni caratteri speciali per il MarkdownV2
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    message = ''.join(f'\\{char}' if char in escape_chars else char for char in message)
+
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {
+        'chat_id': chat_id,
+        'text': message,
+        'parse_mode': 'MarkdownV2'
+    }
+    
+    response = requests.post(url, json=payload)
+    if response.status_code == 200:
+        print("✅ Messaggio inviato con successo a Telegram!")
+    else:
+        print(f"❌ Errore nell'invio del messaggio a Telegram: {response.text}")
+
+def get_target_weekdays(start_days, end_days, weekday_to_find):
+    """Genera una lista di date per un dato giorno della settimana."""
+    dates = []
     today = datetime.today()
     start_date = today + timedelta(days=start_days)
     end_date = today + timedelta(days=end_days)
     
     current_date = start_date
     while current_date <= end_date:
-        if current_date.weekday() == 4: # 4 corrisponde a Venerdì
-            fridays.append(current_date.strftime('%d-%m-%Y'))
+        if current_date.weekday() == weekday_to_find:
+            dates.append(current_date.strftime('%d-%m-%Y'))
         current_date += timedelta(days=1)
     
-    return fridays
+    return dates
+
+def parse_duration(duration_str):
+    """Converte una stringa come '3h 10min' in minuti totali."""
+    total_minutes = 0
+    try:
+        if 'h' in duration_str:
+            parts = duration_str.split('h')
+            total_minutes += int(parts[0]) * 60
+            remaining = parts[1]
+        else:
+            remaining = duration_str
+        
+        if 'min' in remaining:
+            total_minutes += int(remaining.replace('min', '').strip())
+    except (ValueError, IndexError):
+        return 9999
+    return total_minutes
+
+def scrape_results_for_date(driver, search_date, params, start_time_filter, end_time_filter, max_duration_minutes):
+    """Esegue lo scraping per una data e restituisce una lista di risultati testuali."""
+    results = []
+    full_url = f"https://www.lefrecce.it/Channels.Website.WEB/website/auth/handoff?{urllib.parse.urlencode(params)}"
+    driver.get(full_url)
+
+    try:
+        WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "solution"))
+        )
+        print(f"✅ Risultati trovati per il {search_date}! Applico i filtri...")
+
+        page_html = driver.page_source
+        soup = BeautifulSoup(page_html, 'html.parser')
+        train_results = soup.find_all('div', class_='solution')
+        
+        trains_found_in_range = 0
+        for train in train_results:
+            time_elements = train.select('div.od-info b')
+            duration_element = train.select_one('div.duration strong')
+
+            if len(time_elements) < 2 or not duration_element:
+                continue
+
+            departure_time_str = time_elements[0].text.strip()
+            arrival_time_str = time_elements[1].text.strip()
+            duration_str = duration_element.text.strip()
+            
+            try:
+                current_departure_time = datetime.strptime(departure_time_str, '%H:%M').time()
+                duration_in_minutes = parse_duration(duration_str)
+            except ValueError:
+                continue
+
+            if (start_time_filter <= current_departure_time <= end_time_filter) and (duration_in_minutes <= max_duration_minutes):
+                trains_found_in_range += 1
+                price_element = train.find('title2', class_='solution-price-size')
+                price = price_element.text.strip() if price_element else "N/D"
+                results.append(f"  🕒 {departure_time_str} -> {arrival_time_str} ({duration_str}) | Prezzo: a partire da {price}")
+        
+        if trains_found_in_range == 0:
+            results.append("  -> Nessun treno trovato che soddisfi tutti i filtri per questa data.")
+
+    except Exception as e:
+        results.append(f"  -> Non è stato possibile caricare i risultati. Errore: {e}")
+    
+    return results
 
 def main_scraper():
-    """
-    Funzione principale che avvia il browser, cicla sulle date target
-    ed esegue lo scraping per ciascuna di esse.
-    """
-    # === IMPOSTAZIONI DI RICERCA ===
-    departure_station = 'Roma Termini'
-    arrival_station = 'Milano Centrale'
-    departure_time_filter = '16' # Cerca a partire da quest'ora
-    
-    # Filtro sull'orario di partenza
-    start_time_filter = time_obj(16, 0)
-    end_time_filter = time_obj(18, 30)
-    # ===============================
+    """Funzione principale che avvia il browser, esegue le ricerche e invia il report."""
+    final_report = []
 
-    target_dates = get_target_fridays(50, 120)
-
-    if not target_dates:
-        print("Nessun venerdì trovato nell'intervallo di date specificato.")
-        return
-
-    print("=" * 60)
     print("🤖 Avvio del browser in modalità headless...")
     
-    # Impostazioni di Selenium per la modalità headless
     options = webdriver.ChromeOptions()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
@@ -62,63 +133,53 @@ def main_scraper():
     driver = webdriver.Chrome(service=service, options=options)
 
     try:
-        # Itera su ogni venerdì trovato
-        for search_date in target_dates:
-            print("\n" + "="*60)
-            print(f"🔎 Ricerca treni per Venerdì {search_date}")
-            print("="*60)
+        # --- 1. RICERCA VENERDÌ (ANDATA) ---
+        fridays = get_target_weekdays(50, 120, 4)
+        if fridays:
+            final_report.append("*🚄 Ricerca Venerdì (Roma -> Milano)*")
+            for date in fridays:
+                final_report.append(f"\n*Data: {date}*")
+                params = {
+                    'action': 'searchTickets', 'lang': 'it', 'referrer': 'www.trenitalia.com',
+                    'tripType': 'on', 'ynFlexibleDates': 'off', 'departureDate': date,
+                    'departureStation': 'Roma Termini', 'departureTime': '16',
+                    'arrivalStation': 'Milano Centrale', 'selectedTrainType': 'tutti',
+                    'noOfChildren': '0', 'noOfAdults': '1',
+                }
+                results = scrape_results_for_date(driver, date, params, 
+                                                  start_time_filter=time_obj(16, 0), 
+                                                  end_time_filter=time_obj(18, 30), 
+                                                  max_duration_minutes=200)
+                final_report.extend(results)
 
-            base_url = "https://www.lefrecce.it/Channels.Website.WEB/website/auth/handoff"
-            params = {
-                'action': 'searchTickets', 'lang': 'it', 'referrer': 'www.trenitalia.com',
-                'tripType': 'on', 'ynFlexibleDates': 'off', 'departureDate': search_date,
-                'departureStation': departure_station, 'departureTime': departure_time_filter,
-                'arrivalStation': arrival_station, 'selectedTrainType': 'tutti',
-                'noOfChildren': '0', 'noOfAdults': '1',
-            }
-            
-            full_url = f"{base_url}?{urllib.parse.urlencode(params)}"
-            driver.get(full_url)
-
-            try:
-                # Attende che i risultati per la data corrente siano caricati
-                WebDriverWait(driver, 20).until(
-                    EC.presence_of_element_located((By.CLASS_NAME, "solution"))
-                )
-                print(f"✅ Risultati trovati per il {search_date}! Applico il filtro (16:00-18:30)...")
-
-                page_html = driver.page_source
-                soup = BeautifulSoup(page_html, 'html.parser')
-                train_results = soup.find_all('div', class_='solution')
-                
-                trains_found_in_range = 0
-                for train in train_results:
-                    time_elements = train.select('div.od-info b')
-                    if len(time_elements) >= 2:
-                        departure_time_str = time_elements[0].text.strip()
-                        arrival_time = time_elements[1].text.strip()
-                        
-                        try:
-                            current_departure_time = datetime.strptime(departure_time_str, '%H:%M').time()
-                        except ValueError:
-                            continue
-
-                        if start_time_filter <= current_departure_time <= end_time_filter:
-                            trains_found_in_range += 1
-                            price_element = train.find('title2', class_='solution-price-size')
-                            price = price_element.text.strip() if price_element else "N/D"
-                            print(f"  🕒 {departure_time_str} -> {arrival_time} | 💵 Prezzo: a partire da {price}")
-                
-                if trains_found_in_range == 0:
-                    print("  -> Nessun treno trovato nell'intervallo di tempo specificato per questa data.")
-
-            except Exception as e:
-                print(f"  -> Non è stato possibile caricare i risultati per il {search_date}. Errore: {e}")
+        # --- 2. RICERCA DOMENICHE (RITORNO) ---
+        sundays = get_target_weekdays(50, 120, 6)
+        if sundays:
+            final_report.append("\n\n*🚄 Ricerca Domeniche (Milano -> Roma)*")
+            for date in sundays:
+                final_report.append(f"\n*Data: {date}*")
+                params = {
+                    'action': 'searchTickets', 'lang': 'it', 'referrer': 'www.trenitalia.com',
+                    'tripType': 'on', 'ynFlexibleDates': 'off', 'departureDate': date,
+                    'departureStation': 'Milano Centrale', 'departureTime': '14',
+                    'arrivalStation': 'Roma Termini', 'selectedTrainType': 'tutti',
+                    'noOfChildren': '0', 'noOfAdults': '1',
+                }
+                results = scrape_results_for_date(driver, date, params, 
+                                                  start_time_filter=time_obj(14, 0), 
+                                                  end_time_filter=time_obj(23, 59),
+                                                  max_duration_minutes=200)
+                final_report.extend(results)
 
     finally:
-        print("\n" + "="*60)
-        print("Ricerca completata. Chiusura del browser.")
+        print("\nRicerca completata. Chiusura del browser.")
         driver.quit()
+        
+        # Invia il report finale a Telegram
+        if final_report:
+            send_telegram_message("\n".join(final_report))
+        else:
+            print("Nessuna data da controllare, nessun messaggio inviato.")
 
 if __name__ == "__main__":
     main_scraper()
