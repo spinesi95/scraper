@@ -15,7 +15,7 @@ TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
 # Impostazioni Viaggio
 DATA_TARGET = "2026-01-19"  
-SOGLIA_PREZZO = 100.0        # <--- SOTTO questa cifra invia il messaggio. SOPRA sta zitto.
+SOGLIA_PREZZO = 55.0        # <--- SOTTO questa cifra invia il messaggio. SOPRA sta zitto.
 URL_MI_RM = f"https://trovaunposto.it/trains/searchTrainTicket?departure=MILANO%28TUTTE+LE+STAZIONI%29&arrival=ROMA%28TUTTE+LE+STAZIONI%29&date={DATA_TARGET}"
 
 # ==========================================
