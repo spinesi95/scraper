@@ -20,7 +20,7 @@ DATE_DA_CONTROLLARE = [
     "2026-01-20"   # Martedì
 ]
 
-SOGLIA_PREZZO = 70.0        # Avvisa se trova biglietti SOTTO questa cifra
+SOGLIA_PREZZO = 100.0        # Avvisa se trova biglietti SOTTO questa cifra
 
 # ==========================================
 
