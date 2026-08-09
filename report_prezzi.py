@@ -1,26 +1,24 @@
 import requests
-from bs4 import BeautifulSoup
 import os
-import re
 import time
-from datetime import datetime
 
 # ==========================================
-#              CONFIGURAZIONE
+#            CONFIGURAZIONE
 # ==========================================
 
-# Recupero credenziali (GitHub Secrets)
+# Recupero credenziali (GitHub Secrets o variabili d'ambiente)
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
 # --- LISTA DATE DA CONTROLLARE ---
-# Inserisci qui tutte le date che vuoi (formato AAAA-MM-GG)
+# Formato richiesto dall'API: GG/MM/AAAA
 DATE_DA_CONTROLLARE = [
-    "2026-01-19",  # Lunedì
-    "2026-01-20"   # Martedì
+    "26/11/2026",
+    "27/11/2026"
 ]
 
-SOGLIA_PREZZO = 55.0        # Avvisa se trova biglietti SOTTO questa cifra
+PICKUP_RICHIESTO = "08:30"
+EXCURSION_ID = "1"
 
 # ==========================================
 
@@ -45,20 +43,13 @@ def invia_telegram(testo):
         else:
             print(" [v] Notifica inviata.")
     except Exception as e:
-        print(f" [!] Errore connessione: {e}")
-
-def pulisci_prezzo(prezzo_str):
-    try:
-        clean = re.sub(r'[^\d.,]', '', prezzo_str).replace(',', '.')
-        return float(clean)
-    except:
-        return 999.9
+        print(f" [!] Errore connessione Telegram: {e}")
 
 def controlla_singola_data(data_str):
     """Esegue il controllo per una data specifica"""
     
-    # Genera l'URL specifico per questa data
-    url_corrente = f"https://trovaunposto.it/trains/searchTrainTicket?departure=MILANO%28TUTTE+LE+STAZIONI%29&arrival=ROMA%28TUTTE+LE+STAZIONI%29&date={data_str}"
+    # L'API accetta date_from e date_to. Usiamo la stessa data per controllare un giorno alla volta.
+    url_corrente = f"https://api.hieloyaventura.com/api/hya/shifts?date_from={data_str}&date_to={data_str}&excursion_id={EXCURSION_ID}"
     
     print(f"--- Controllo {data_str} ---")
     
@@ -67,42 +58,48 @@ def controlla_singola_data(data_str):
         resp = requests.get(url_corrente, headers=headers, timeout=20)
         
         if resp.status_code != 200:
-            print(f" [!] Sito irraggiungibile per {data_str} (Status: {resp.status_code})")
+            print(f" [!] API irraggiungibile per {data_str} (Status: {resp.status_code})")
             return
 
-        soup = BeautifulSoup(resp.text, 'html.parser')
-        biglietti = soup.find_all('div', class_='ticket-info showing')
+        # Parsing diretto del JSON
+        dati_json = resp.json()
+        turni = dati_json.get("TURNOS", [])
+        prodotto = dati_json.get("PRODUCTOD", "Escursione")
         
-        messaggi_treni = []
+        messaggi_escursione = []
         
-        for ticket in biglietti:
-            try:
-                orario_raw = ticket.find('div', class_='time').text.strip()
-                orario = " ".join(orario_raw.split())
+        for turno in turni:
+            pickup = turno.get("PICKUP", "")
+            
+            # Filtriamo solo i turni con il pickup desiderato
+            if pickup == PICKUP_RICHIESTO:
+                # Nel JSON i posti sembrano divisi in TOD e TRD. Li sommiamo per sicurezza.
+                posti_tod = int(turno.get("TOD", 0))
+                posti_trd = int(turno.get("TRD", 0))
+                posti_totali = posti_tod + posti_trd
                 
-                prezzo_txt = ticket.find('div', class_='mob-right').text.strip()
-                prezzo_val = pulisci_prezzo(prezzo_txt)
+                orario_turno = turno.get("TURNO", "")
+                prezzo = turno.get("VALOR_TOTAL", "0")
                 
-                if prezzo_val <= SOGLIA_PREZZO:
-                    messaggi_treni.append(f"🚄 {orario}  |  💰 <b>{prezzo_txt}</b>")
-            except:
-                continue
+                if posti_totali > 0:
+                    messaggi_escursione.append(
+                        f"🕒 <b>Turno: {orario_turno}</b> (Pickup: {pickup})\n"
+                        f"🎟 Posti disponibili: <b>{posti_totali}</b>\n"
+                        f"💰 Prezzo totale: <b>{prezzo}</b>"
+                    )
 
-        if messaggi_treni:
-            print(f" [!!!] Trovate {len(messaggi_treni)} offerte per il {data_str}!")
+        if messaggi_escursione:
+            print(f" [!!!] Trovati posti per il {data_str}!")
             
-            # Formattazione data (es. 19/01/2026)
-            data_human = datetime.strptime(data_str, "%Y-%m-%d").strftime("%d/%m/%Y")
+            testo = (f"🧊 <b>{prodotto} - DISPONIBILITÀ TROVATA</b>\n"
+                     f"📅 Data: {data_str}\n\n")
             
-            testo = (f"📅 <b>OFFERTE DEL {data_human}</b>\n"
-                     f"🔔 Soglia: {SOGLIA_PREZZO}€\n\n")
-            
-            testo += "\n".join(messaggi_treni[:10])
-            testo += f"\n\n👉 <a href='{url_corrente}'>Prenota biglietti</a>"
+            testo += "\n\n".join(messaggi_escursione)
+            testo += f"\n\n👉 <a href='https://hieloyaventura.com/'>Vai al sito ufficiale</a>"
             
             invia_telegram(testo)
         else:
-            print(f" [i] Nessuna offerta interessante per il {data_str}.")
+            print(f" [i] Nessun posto disponibile per il {data_str} con pickup alle {PICKUP_RICHIESTO}.")
 
     except Exception as e:
         print(f" [!] Errore durante il controllo di {data_str}: {e}")
@@ -112,8 +109,8 @@ def job_principale():
     
     for data in DATE_DA_CONTROLLARE:
         controlla_singola_data(data)
-        # Pausa di 5 secondi tra una data e l'altra per educazione verso il server
-        time.sleep(5)
+        # Pausa di 2 secondi tra una chiamata e l'altra per educazione verso il server
+        time.sleep(2)
         
     print("=== FINE CICLO ===")
 
