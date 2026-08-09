@@ -1,13 +1,16 @@
 name: Controllo Posti Escursione
 
 on:
-  workflow_dispatch: # Permette di avviare lo script manualmente con un pulsante
+  workflow_dispatch:
   schedule:
-    - cron: '0 8,14,20 * * *' # Opzionale: lo fa girare in automatico alle 8, alle 14 e alle 20 (orario UTC)
+    - cron: '0 8,11,14,17,20 * * *' # Ora gira 5 volte al giorno (puoi aumentarle, tanto manderà max 1 notifica)
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # IMPORTANTE: Permette a GitHub Actions di salvare il file di testo
+
     steps:
       - name: Checkout del codice
         uses: actions/checkout@v3
@@ -26,4 +29,12 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python report_prezzi.py # SOSTITUISCI CON IL NOME ESATTO DEL TUO SCRIPT PYTHON
+        run: python NOME_DEL_TUO_FILE.py # Sostituisci con il nome reale (es. main.py)
+
+      - name: Salva la data in memoria (se modificata)
+        run: |
+          git config --global user.name 'GitHub Actions Bot'
+          git config --global user.email 'actions@github.com'
+          git add ultima_notifica.txt || true
+          git commit -m "Aggiornata memoria notifica [skip ci]" || true
+          git push || true
